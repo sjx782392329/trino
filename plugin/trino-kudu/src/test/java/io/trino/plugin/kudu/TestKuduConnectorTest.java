@@ -14,6 +14,7 @@
 package io.trino.plugin.kudu;
 
 import io.airlift.log.Logger;
+import io.trino.spi.type.DecimalType;
 import io.trino.sql.planner.plan.LimitNode;
 import io.trino.testing.BaseConnectorTest;
 import io.trino.testing.MaterializedResult;
@@ -533,6 +534,40 @@ public class TestKuduConnectorTest
             assertUpdate("ALTER TABLE " + table.getName() + " ADD COLUMN b_varchar varchar COMMENT " + varcharLiteral(comment));
             assertThat(getColumnComment(table.getName(), "b_varchar")).isEqualTo(comment);
         }
+    }
+
+    @Test
+    public void testAddColumnWithDecimal()
+    {
+        testAddColumnWithDecimal(DecimalType.createDecimalType(14, 5));
+        testAddColumnWithDecimal(DecimalType.createDecimalType(35, 5));
+    }
+
+    protected void testAddColumnWithDecimal(DecimalType decimal)
+    {
+        String tableName = "test_add_column_with_decimal" + randomNameSuffix();
+
+        assertUpdate("CREATE TABLE IF NOT EXISTS " + tableName + " (" +
+                "id INT WITH (primary_key=true), " +
+                "a_varchar VARCHAR" +
+                ") WITH (" +
+                " partition_by_hash_columns = ARRAY['id'], " +
+                " partition_by_hash_buckets = 2" +
+                ")");
+
+        String displayName = decimal.getDisplayName();
+        assertUpdate("ALTER TABLE " + tableName + " ADD COLUMN b_decimal " + displayName);
+        assertThat(getDecimalType(tableName)).isEqualTo(displayName);
+        assertUpdate("DROP TABLE " + tableName);
+    }
+
+    protected String getDecimalType(String tableName)
+    {
+        return (String) computeScalar(format(
+                "SELECT data_type FROM information_schema.columns WHERE table_schema = '%s' AND table_name = '%s' AND column_name = '%s'",
+                getSession().getSchema().orElseThrow(),
+                tableName,
+                "b_decimal"));
     }
 
     @Test

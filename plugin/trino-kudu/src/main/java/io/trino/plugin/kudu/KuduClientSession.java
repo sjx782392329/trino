@@ -325,13 +325,7 @@ public class KuduClientSession
         try {
             String rawName = schemaEmulation.toRawName(schemaTableName);
             AlterTableOptions alterOptions = new AlterTableOptions();
-            Type type = TypeHelper.toKuduClientType(column.getType());
-            alterOptions.addColumn(
-                    new ColumnSchemaBuilder(column.getName(), type)
-                            .nullable(true)
-                            .defaultValue(null)
-                            .comment(nullToEmpty(column.getComment())) // Kudu doesn't allow null comment
-                            .build());
+            alterOptions.addColumn(addNullableColumnSchema(column));
             client.alterTable(rawName, alterOptions);
         }
         catch (KuduException e) {
@@ -434,6 +428,18 @@ public class KuduClientSession
                     .scale(type.getScale()).build();
             builder.typeAttributes(attributes);
         }
+    }
+
+    private ColumnSchema addNullableColumnSchema(ColumnMetadata columnMetadata)
+    {
+        String name = columnMetadata.getName();
+        Type type = TypeHelper.toKuduClientType(columnMetadata.getType());
+        ColumnSchema.ColumnSchemaBuilder builder = new ColumnSchema.ColumnSchemaBuilder(name, type)
+                .nullable(true)
+                .defaultValue(null)
+                .comment(nullToEmpty(columnMetadata.getComment()));
+        setTypeAttributes(columnMetadata, builder);
+        return builder.build();
     }
 
     private void setCompression(String name, ColumnSchemaBuilder builder, ColumnDesign design)
